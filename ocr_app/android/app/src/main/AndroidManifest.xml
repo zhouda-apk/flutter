@@ -1,4 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 相機權限 -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    
+    <!-- 儲存空間權限 (Android 13+) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    
+    <!-- 儲存空間權限 (Android 12 及以下) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    
+    <!-- 網絡權限 (ML Kit 模型下載) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="ocr_notes_app"
         android:name="${applicationName}"

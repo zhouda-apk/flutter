@@ -1,7 +1,7 @@
-import '../../../database/database_helper.dart';
-import '../../../models/note.dart';
-import '../../../services/ocr_service.dart';
-import '../../../services/image_service.dart';
+import '../database/database_helper.dart';
+import '../models/note.dart';
+import '../services/ocr_service.dart';
+import '../services/image_service.dart';
 
 class NoteController {
   final DatabaseHelper _db = DatabaseHelper.instance;
@@ -9,12 +9,41 @@ class NoteController {
   final ImageService _imageService = ImageService();
 
   // ── 取得所有筆記 ──────────────────────────────────────────
-  Future<List<Note>> getAllNotes() => _db.getAllNotes();
+  Future<List<Note>> getAllNotes() async {
+    return await _db.getAllNotes();
+  }
 
   // ── 搜尋筆記 ──────────────────────────────────────────────
-  Future<List<Note>> searchNotes(String query) {
-    if (query.trim().isEmpty) return getAllNotes();
-    return _db.searchNotes(query.trim());
+  Future<List<Note>> searchNotes(String query) async {
+    if (query.trim().isEmpty) return await getAllNotes();
+    return await _db.searchNotes(query.trim());
+  }
+
+  // ── 儲存筆記 ──────────────────────────────────────────────
+  Future<Note> saveNote({
+    required String title,
+    required String content,
+    required String rawOcrText,
+    required String imagePath,
+    required List<String> tags,
+  }) async {
+    final now = DateTime.now();
+    final note = Note(
+      title: title.isEmpty ? '未命名筆記' : title,
+      content: content,
+      rawOcrText: rawOcrText,
+      imagePath: imagePath,
+      tags: tags,
+      createdAt: now,
+      updatedAt: now,
+    );
+    return await _db.insertNote(note);
+  }
+
+  // ── 更新筆記 ──────────────────────────────────────────────
+  Future<Note> updateNote(Note note) async {
+    await _db.updateNote(note);
+    return note;
   }
 
   // ── 相機拍攝 → OCR → 回傳草稿 ────────────────────────────
@@ -69,30 +98,6 @@ class NoteController {
       (i) => NoteDraft(imagePath: imagePaths[i], ocrResult: results[i]),
     );
   }
-
-  // ── 儲存筆記 ──────────────────────────────────────────────
-  Future<Note> saveNote({
-    required String title,
-    required String content,
-    required String rawOcrText,
-    required String imagePath,
-    required List<String> tags,
-  }) async {
-    final now = DateTime.now();
-    final note = Note(
-      title: title.isEmpty ? '未命名筆記' : title,
-      content: content,
-      rawOcrText: rawOcrText,
-      imagePath: imagePath,
-      tags: tags,
-      createdAt: now,
-      updatedAt: now,
-    );
-    return await _db.insertNote(note);
-  }
-
-  // ── 更新筆記 ──────────────────────────────────────────────
-  Future<void> updateNote(Note note) => _db.updateNote(note);
 
   // ── 刪除筆記（連同圖片） ──────────────────────────────────
   Future<void> deleteNote(Note note) async {

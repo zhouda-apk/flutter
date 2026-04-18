@@ -10,7 +10,7 @@ class ImageService {
   Future<String?> captureFromCamera() async {
     final xFile = await _picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 90,
+      imageQuality: 95,  // ↑ 提高至 95（更清晰）
       preferredCameraDevice: CameraDevice.rear,
     );
     if (xFile == null) return null;
@@ -21,7 +21,7 @@ class ImageService {
   Future<String?> pickFromGallery() async {
     final xFile = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 90,
+      imageQuality: 95,  // ↑ 提高至 95
     );
     if (xFile == null) return null;
     return await _saveToAppDirectory(xFile.path);
@@ -30,7 +30,7 @@ class ImageService {
   // ── 從相簿多選（第四頁需求） ──────────────────────────────
   Future<List<String>> pickMultipleFromGallery() async {
     final xFiles = await _picker.pickMultiImage(
-      imageQuality: 90,
+      imageQuality: 95,  // ↑ 提高至 95
     );
     if (xFiles.isEmpty) return [];
 

@@ -84,10 +84,11 @@ class DatabaseHelper {
 
   // ── Update ───────────────────────────────────────────────
   Future<int> updateNote(Note note) async {
+    if (note.id == null) throw Exception('筆記ID不能為空');
     final db = await database;
     return await db.update(
       'notes',
-      note.copyWith(updatedAt: DateTime.now()).toMap(),
+      note.toMap(),
       where: 'id = ?',
       whereArgs: [note.id],
     );
