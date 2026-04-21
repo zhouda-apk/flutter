@@ -22,7 +22,7 @@ class NoteCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFF9F8FF),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black.withOpacity(0.08), width: 0.5),
+          border: Border.all(color: const Color(0x14000000), width: 0.5),
         ),
         child: Row(
           children: [

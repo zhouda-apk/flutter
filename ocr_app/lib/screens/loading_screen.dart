@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../services/ocr_service.dart';
 import 'proofreading_screen.dart';
@@ -77,8 +79,8 @@ class _LoadingScreenState extends State<LoadingScreen>
   Future<void> _showErrorDialog(String error) async {
     _ocr.dispose();
     if (!mounted) return;
-    
-    showDialog(
+
+    await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
@@ -119,9 +121,9 @@ class _LoadingScreenState extends State<LoadingScreen>
             const SizedBox(height: 40),
             _buildSpinner(),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'OCR 辨識處理中',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 8),
             Text(
@@ -161,11 +163,12 @@ class _LoadingScreenState extends State<LoadingScreen>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.asset(
-          widget.imagePath,
+        child: Image.file(
+          File(widget.imagePath),
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => const Center(
-            child: Icon(Icons.image_outlined, size: 40, color: Color(0xFFDDDDDD)),
+            child:
+                Icon(Icons.image_outlined, size: 40, color: Color(0xFFDDDDDD)),
           ),
         ),
       ),

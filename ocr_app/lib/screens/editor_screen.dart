@@ -81,6 +81,7 @@ class _EditorScreenState extends State<EditorScreen> {
       );
       Navigator.pop(context);
     } on Exception catch (e) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -90,6 +91,7 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -113,7 +115,9 @@ class _EditorScreenState extends State<EditorScreen> {
             decoration: const InputDecoration(hintText: '輸入標籤名稱'),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消')),
             TextButton(
               onPressed: () {
                 if (ctrl.text.trim().isNotEmpty) {
@@ -147,11 +151,18 @@ class _EditorScreenState extends State<EditorScreen> {
           _isSaving
               ? const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))),
+                  child: Center(
+                      child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))),
                 )
               : TextButton(
                   onPressed: _save,
-                  child: const Text('儲存', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                  child: const Text('儲存',
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w500)),
                 ),
         ],
       ),
@@ -170,14 +181,16 @@ class _EditorScreenState extends State<EditorScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
+        border:
+            Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
       ),
       child: TextField(
         controller: _titleController,
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
         decoration: const InputDecoration(
           hintText: '筆記標題…',
-          hintStyle: TextStyle(color: Color(0xFFAAAAAA), fontWeight: FontWeight.w500),
+          hintStyle:
+              TextStyle(color: Color(0xFFAAAAAA), fontWeight: FontWeight.w500),
           border: InputBorder.none,
           isDense: true,
           contentPadding: EdgeInsets.zero,
@@ -190,13 +203,15 @@ class _EditorScreenState extends State<EditorScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
+        border:
+            Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            const Text('標籤：', style: TextStyle(fontSize: 12, color: Color(0xFFAAAAAA))),
+            const Text('標籤：',
+                style: TextStyle(fontSize: 12, color: Color(0xFFAAAAAA))),
             ..._tags.map((tag) => _TagChip(
                   label: tag,
                   onRemove: () => _removeTag(tag),
@@ -206,7 +221,8 @@ class _EditorScreenState extends State<EditorScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFF6C63FF), width: 0.5),
+                  border:
+                      Border.all(color: const Color(0xFF6C63FF), width: 0.5),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
@@ -224,15 +240,28 @@ class _EditorScreenState extends State<EditorScreen> {
   Widget _buildFormatToolbar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      color: const Color(0xFFF9F8FF),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
+        color: Color(0xFFF9F8FF),
+        border:
+            Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
       ),
       child: Row(
         children: [
-          _FmtBtn(label: 'B', active: _isBold, bold: true, onTap: () => setState(() => _isBold = !_isBold)),
-          _FmtBtn(label: 'U', active: _isUnderline, underline: true, onTap: () => setState(() => _isUnderline = !_isUnderline)),
-          _FmtBtn(label: 'I', active: _isItalic, italic: true, onTap: () => setState(() => _isItalic = !_isItalic)),
+          _FmtBtn(
+              label: 'B',
+              active: _isBold,
+              bold: true,
+              onTap: () => setState(() => _isBold = !_isBold)),
+          _FmtBtn(
+              label: 'U',
+              active: _isUnderline,
+              underline: true,
+              onTap: () => setState(() => _isUnderline = !_isUnderline)),
+          _FmtBtn(
+              label: 'I',
+              active: _isItalic,
+              italic: true,
+              onTap: () => setState(() => _isItalic = !_isItalic)),
           _divider(),
           _FmtBtn(label: '≡', active: false, onTap: () {}),
           _FmtBtn(label: '1.', active: false, onTap: () {}),
@@ -245,7 +274,11 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Widget _divider() {
-    return Container(width: 1, height: 18, color: const Color(0xFFEEEEEE), margin: const EdgeInsets.symmetric(horizontal: 4));
+    return Container(
+        width: 1,
+        height: 18,
+        color: const Color(0xFFEEEEEE),
+        margin: const EdgeInsets.symmetric(horizontal: 4));
   }
 
   Widget _buildEditor() {
@@ -261,7 +294,8 @@ class _EditorScreenState extends State<EditorScreen> {
           height: 1.8,
           fontWeight: _isBold ? FontWeight.w500 : FontWeight.normal,
           fontStyle: _isItalic ? FontStyle.italic : FontStyle.normal,
-          decoration: _isUnderline ? TextDecoration.underline : TextDecoration.none,
+          decoration:
+              _isUnderline ? TextDecoration.underline : TextDecoration.none,
         ),
         decoration: const InputDecoration(
           hintText: '開始輸入筆記內容…',
@@ -300,7 +334,8 @@ class _TagChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF5B21B6))),
+          Text(label,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF5B21B6))),
           const SizedBox(width: 3),
           GestureDetector(
             onTap: onRemove,
@@ -352,7 +387,8 @@ class _FmtBtn extends StatelessWidget {
               fontSize: 12,
               fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
               fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-              decoration: underline ? TextDecoration.underline : TextDecoration.none,
+              decoration:
+                  underline ? TextDecoration.underline : TextDecoration.none,
               color: active ? const Color(0xFF6C63FF) : const Color(0xFF888888),
             ),
           ),

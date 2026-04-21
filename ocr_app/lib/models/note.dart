@@ -33,17 +33,20 @@ class Note {
   }
 
   factory Note.fromMap(Map<String, dynamic> map) {
+    final createdAtStr = (map['created_at'] ?? '').toString();
+    final updatedAtStr = (map['updated_at'] ?? '').toString();
+
     return Note(
-      id: map['id'],
-      title: map['title'],
-      content: map['content'],
-      rawOcrText: map['raw_ocr_text'],
-      imagePath: map['image_path'],
-      tags: (map['tags'] as String).isEmpty
+      id: map['id'] is int ? map['id'] as int : int.tryParse('${map['id']}'),
+      title: (map['title'] ?? '').toString(),
+      content: (map['content'] ?? '').toString(),
+      rawOcrText: (map['raw_ocr_text'] ?? '').toString(),
+      imagePath: (map['image_path'] ?? '').toString(),
+      tags: ((map['tags'] ?? '').toString()).isEmpty
           ? []
-          : (map['tags'] as String).split(','),
-      createdAt: DateTime.parse(map['created_at']),
-      updatedAt: DateTime.parse(map['updated_at']),
+          : ((map['tags'] ?? '').toString()).split(','),
+      createdAt: DateTime.tryParse(createdAtStr) ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(updatedAtStr) ?? DateTime.now(),
     );
   }
 

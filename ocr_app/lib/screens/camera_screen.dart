@@ -55,6 +55,7 @@ class _CameraScreenState extends State<CameraScreen> {
     await _cameraController?.setFlashMode(
       _flashOn ? FlashMode.torch : FlashMode.off,
     );
+    if (!mounted) return;
     setState(() {});
   }
 
@@ -73,6 +74,7 @@ class _CameraScreenState extends State<CameraScreen> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isCapturing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('拍攝失敗：$e')),
@@ -90,7 +92,6 @@ class _CameraScreenState extends State<CameraScreen> {
             Positioned.fill(child: CameraPreview(_cameraController!))
           else
             const Center(child: CircularProgressIndicator(color: Colors.white)),
-
           _buildGridOverlay(),
           _buildDocumentFrame(),
           _buildTopBar(),
@@ -101,7 +102,7 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Widget _buildGridOverlay() {
-    return Positioned.fill(
+    return const Positioned.fill(
       child: CustomPaint(painter: _GridPainter()),
     );
   }
@@ -112,10 +113,10 @@ class _CameraScreenState extends State<CameraScreen> {
         width: 260,
         height: 340,
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.8), width: 2),
+          border: Border.all(color: const Color(0xCC6C63FF), width: 2),
           borderRadius: BorderRadius.circular(4),
         ),
-        child: Stack(
+        child: const Stack(
           children: [
             _Corner(top: 0, left: 0, borderTop: true, borderLeft: true),
             _Corner(top: 0, right: 0, borderTop: true, borderRight: true),
@@ -142,9 +143,9 @@ class _CameraScreenState extends State<CameraScreen> {
                 onTap: () => Navigator.pop(context),
                 child: const Icon(Icons.close, color: Colors.white, size: 28),
               ),
-              Text(
+              const Text(
                 '對齊文件邊緣',
-                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                style: TextStyle(color: Color(0xB3FFFFFF), fontSize: 13),
               ),
               GestureDetector(
                 onTap: _toggleFlash,
@@ -182,9 +183,9 @@ class _CameraScreenState extends State<CameraScreen> {
               child: Container(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.15),
+                  color: Color(0x26FFFFFF),
                 ),
                 child: Icon(
                   _flashOn ? Icons.flash_on : Icons.flash_auto,
@@ -219,7 +220,8 @@ class _CameraScreenState extends State<CameraScreen> {
               onTap: () {
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (_) => const AlbumRedirectHelper()),
+                  MaterialPageRoute(
+                      builder: (_) => const AlbumRedirectHelper()),
                 );
               },
               child: Container(
@@ -227,10 +229,11 @@ class _CameraScreenState extends State<CameraScreen> {
                 height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.15),
+                  color: const Color(0x26FFFFFF),
                   border: Border.all(color: Colors.white30, width: 0.5),
                 ),
-                child: const Icon(Icons.photo_library_outlined, color: Colors.white, size: 22),
+                child: const Icon(Icons.photo_library_outlined,
+                    color: Colors.white, size: 22),
               ),
             ),
           ],
@@ -264,10 +267,12 @@ class _AlbumImport extends StatelessWidget {
 }
 
 class _GridPainter extends CustomPainter {
+  const _GridPainter();
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.1)
+      ..color = const Color(0x1AFFFFFF)
       ..strokeWidth = 0.5;
 
     for (int i = 1; i < 3; i++) {
@@ -315,10 +320,18 @@ class _Corner extends StatelessWidget {
         height: 20,
         decoration: BoxDecoration(
           border: Border(
-            top: borderTop ? const BorderSide(color: Color(0xFF6C63FF), width: 3) : BorderSide.none,
-            left: borderLeft ? const BorderSide(color: Color(0xFF6C63FF), width: 3) : BorderSide.none,
-            right: borderRight ? const BorderSide(color: Color(0xFF6C63FF), width: 3) : BorderSide.none,
-            bottom: borderBottom ? const BorderSide(color: Color(0xFF6C63FF), width: 3) : BorderSide.none,
+            top: borderTop
+                ? const BorderSide(color: Color(0xFF6C63FF), width: 3)
+                : BorderSide.none,
+            left: borderLeft
+                ? const BorderSide(color: Color(0xFF6C63FF), width: 3)
+                : BorderSide.none,
+            right: borderRight
+                ? const BorderSide(color: Color(0xFF6C63FF), width: 3)
+                : BorderSide.none,
+            bottom: borderBottom
+                ? const BorderSide(color: Color(0xFF6C63FF), width: 3)
+                : BorderSide.none,
           ),
         ),
       ),

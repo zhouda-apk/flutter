@@ -46,11 +46,16 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
         title: const Text('重新辨識'),
         content: const Text('重新辨識將覆蓋目前的文字內容，確定嗎？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('確定')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('確定')),
         ],
       ),
     );
+    if (!mounted) return;
     if (confirm != true) return;
 
     Navigator.pop(context);
@@ -58,9 +63,8 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lowConfidenceBlocks = widget.ocrResult.blocks
-        .where((b) => b.isLowConfidence)
-        .toList();
+    final lowConfidenceBlocks =
+        widget.ocrResult.blocks.where((b) => b.isLowConfidence).toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -73,7 +77,9 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
         actions: [
           TextButton(
             onPressed: _proceedToEditor,
-            child: const Text('下一步', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+            child: const Text('下一步',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w500)),
           ),
         ],
       ),
@@ -103,7 +109,8 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
               errorBuilder: (_, __, ___) => Container(
                 color: const Color(0xFFE8E4F0),
                 child: const Center(
-                  child: Icon(Icons.image_outlined, size: 48, color: Color(0xFFAAAAAA)),
+                  child: Icon(Icons.image_outlined,
+                      size: 48, color: Color(0xFFAAAAAA)),
                 ),
               ),
             ),
@@ -137,7 +144,11 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
         children: [
           const Text(
             '辨識文字',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF888888), letterSpacing: 0.5),
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF888888),
+                letterSpacing: 0.5),
           ),
           if (errorCount > 0)
             Row(
@@ -153,7 +164,8 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
                 const SizedBox(width: 4),
                 Text(
                   '偵測到 $errorCount 處可能錯誤',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFFEF4444)),
+                  style:
+                      const TextStyle(fontSize: 11, color: Color(0xFFEF4444)),
                 ),
               ],
             ),
@@ -212,7 +224,8 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
               style: TextStyle(
                 fontSize: 14,
                 height: 1.7,
-                color: isLow ? const Color(0xFFEF4444) : const Color(0xFF1A1A1A),
+                color:
+                    isLow ? const Color(0xFFEF4444) : const Color(0xFF1A1A1A),
               ),
             ),
           ),
@@ -253,7 +266,8 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
                 foregroundColor: const Color(0xFF555555),
                 side: const BorderSide(color: Color(0xFFDDDDDD)),
               ),
-              child: Text(_isEditing ? '預覽模式' : '手動編輯', style: const TextStyle(fontSize: 13)),
+              child: Text(_isEditing ? '預覽模式' : '手動編輯',
+                  style: const TextStyle(fontSize: 13)),
             ),
           ),
           const SizedBox(width: 8),

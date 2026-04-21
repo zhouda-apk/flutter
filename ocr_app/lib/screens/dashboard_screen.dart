@@ -28,17 +28,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadNotes() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
-    final notes = await _controller.getAllNotes();
-    setState(() {
-      _notes = notes;
-      _isLoading = false;
-    });
+    try {
+      final notes = await _controller.getAllNotes();
+      if (!mounted) return;
+      setState(() {
+        _notes = notes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('載入筆記失敗：$e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _searchNotes(String query) async {
-    final notes = await _controller.searchNotes(query);
-    setState(() => _notes = notes);
+    try {
+      final notes = await _controller.searchNotes(query);
+      if (!mounted) return;
+      setState(() => _notes = notes);
+    } catch (_) {
+      // 搜尋失敗時不打斷 UI
+    }
   }
 
   Future<void> _deleteNote(Note note) async {
@@ -48,7 +66,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text('刪除筆記'),
         content: Text('確定要刪除「${note.title}」嗎？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('刪除', style: TextStyle(color: Colors.red)),
@@ -137,7 +157,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildToggleRow(),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
                 : _notes.isEmpty
                     ? _buildEmptyState()
                     : _isGridView
@@ -165,24 +186,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Column(
         children: [
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 '我的筆記',
-                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w500),
               ),
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 16,
                 backgroundColor: Colors.white24,
-                child: Text('王', style: TextStyle(color: Colors.white, fontSize: 12)),
+                child: Text('王',
+                    style: TextStyle(color: Colors.white, fontSize: 12)),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: const Color(0x33FFFFFF),
               borderRadius: BorderRadius.circular(8),
             ),
             child: TextField(
@@ -272,9 +297,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Icon(Icons.note_add_outlined, size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          Text('還沒有筆記', style: TextStyle(fontSize: 16, color: Colors.grey.shade400)),
+          Text('還沒有筆記',
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade400)),
           const SizedBox(height: 8),
-          Text('點擊右下角按鈕開始掃描', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+          Text('點擊右下角按鈕開始掃描',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
         ],
       ),
     );
@@ -293,7 +320,8 @@ class _ViewToggleBtn extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
-  const _ViewToggleBtn({required this.icon, required this.active, required this.onTap});
+  const _ViewToggleBtn(
+      {required this.icon, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -318,7 +346,8 @@ class _GridNoteCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
-  const _GridNoteCard({required this.note, required this.onTap, required this.onDelete});
+  const _GridNoteCard(
+      {required this.note, required this.onTap, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -329,7 +358,7 @@ class _GridNoteCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFF9F8FF),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black.withOpacity(0.08), width: 0.5),
+          border: Border.all(color: const Color(0x14000000), width: 0.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,10 +366,12 @@ class _GridNoteCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(Icons.description_outlined, size: 20, color: Color(0xFF6C63FF)),
+                const Icon(Icons.description_outlined,
+                    size: 20, color: Color(0xFF6C63FF)),
                 GestureDetector(
                   onTap: onDelete,
-                  child: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFAAAAAA)),
+                  child: const Icon(Icons.delete_outline,
+                      size: 16, color: Color(0xFFAAAAAA)),
                 ),
               ],
             ),

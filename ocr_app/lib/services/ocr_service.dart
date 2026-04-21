@@ -1,82 +1,40 @@
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class OcrService {
   TextRecognizer? _recognizer;
-  bool _isInitializing = false;
+  Future<void>? _initFuture;
+  bool _preferChinese = true;
 
   // ── 初始化 TextRecognizer（包含中文→通用自動降級） ──────
-  Future<void> _ensureInitialized() async {
-    if (_recognizer != null) return;
-    if (_isInitializing) {
-      // 等待正在進行的初始化完成
-      while (_isInitializing) {
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-      return;
-    }
+  Future<void> _ensureInitialized() {
+    if (_recognizer != null) return Future.value();
+    return _initFuture ??= _initialize(preferChinese: _preferChinese);
+  }
 
-    _isInitializing = true;
+  Future<void> _initialize({required bool preferChinese}) async {
     try {
-      // 首先嘗試使用中文脚本
-      try {
-        _recognizer = TextRecognizer(
-          script: TextRecognitionScript.chinese,
-        );
-        
-        // 測試初始化
-        final testImage = InputImage.fromBytes(
-          bytes: Uint8List(4),
-          metadata: InputImageMetadata(
-            size: const Size(1, 1),
-            rotation: InputImageRotation.rotation0deg,
-            format: InputImageFormat.bgra8888,
-            bytesPerRow: 4,
-          ),
-        );
-        try {
-          await _recognizer!.processImage(testImage);
-        } catch (_) {
-          // 忽略测试错误，模型已初始化
-        }
-      } catch (chineseError) {
-        // 中文模型初始化失敗，嘗試通用模型
-        print('中文模型初始化失敗：$chineseError，嘗試通用模型...');
-        _recognizer?.close();
-        _recognizer = null;
-        
-        try {
-          _recognizer = TextRecognizer(); // 使用預設語言（通用）
-          
-          // 測試初始化
-          final testImage = InputImage.fromBytes(
-            bytes: Uint8List(4),
-            metadata: InputImageMetadata(
-              size: const Size(1, 1),
-              rotation: InputImageRotation.rotation0deg,
-              format: InputImageFormat.bgra8888,
-              bytesPerRow: 4,
-            ),
-          );
-          try {
-            await _recognizer!.processImage(testImage);
-          } catch (_) {
-            // 忽略测试错误
-          }
-        } catch (fallbackError) {
-          _recognizer?.close();
-          _recognizer = null;
-          throw OcrException('通用模型初始化也失敗，請檢查網絡連接和存儲空間：$fallbackError');
-        }
+      _recognizer?.close();
+      _recognizer = null;
+
+      if (preferChinese) {
+        _recognizer = TextRecognizer(script: TextRecognitionScript.chinese);
+      } else {
+        _recognizer = TextRecognizer();
       }
     } catch (e) {
       _recognizer?.close();
       _recognizer = null;
+      _initFuture = null;
       throw OcrException('模型初始化失敗：$e');
-    } finally {
-      _isInitializing = false;
     }
+  }
+
+  bool _looksLikeChineseModelMissing(Object e) {
+    final s = e.toString();
+    return s.contains('ChineseTextRecognizerOptions') ||
+        s.contains('text-recognition-chinese') ||
+        s.contains('TextRecognitionScript.chinese');
   }
 
   // ── 辨識單張圖片（含後處理優化） ─────────────────────────────
@@ -87,16 +45,28 @@ class OcrService {
     final inputImage = InputImage.fromFilePath(imagePath);
 
     try {
-      final recognized = await _recognizer!.processImage(inputImage);
+      RecognizedText recognized;
+      try {
+        recognized = await _recognizer!.processImage(inputImage);
+      } catch (e) {
+        // 中文模型缺失/初始化失敗時，降級為通用模型再重試一次。
+        if (_preferChinese && _looksLikeChineseModelMissing(e)) {
+          debugPrint('中文模型不可用，改用通用模型：$e');
+          _preferChinese = false;
+          _initFuture = null;
+          await _ensureInitialized();
+          recognized = await _recognizer!.processImage(inputImage);
+        } else {
+          rethrow;
+        }
+      }
 
       // 計算每個 block 的置信度
       final blocks = recognized.blocks.map((block) {
         final elements = block.lines.expand((l) => l.elements).toList();
         final avgConfidence = elements.isEmpty
             ? 0.0
-            : elements
-                    .map((e) => e.confidence ?? 0.0)
-                    .reduce((a, b) => a + b) /
+            : elements.map((e) => e.confidence ?? 0.0).reduce((a, b) => a + b) /
                 elements.length;
 
         return OcrBlock(
@@ -111,20 +81,24 @@ class OcrService {
 
       // 🔑 優化2：組合文本並清理
       final fullText = _cleanOcrText(
-        highConfidenceBlocks.isEmpty ? recognized.text : highConfidenceBlocks.map((b) => b.text).join('\n'),
+        highConfidenceBlocks.isEmpty
+            ? recognized.text
+            : highConfidenceBlocks.map((b) => b.text).join('\n'),
       );
 
       // 🔑 優化3：使用高置信度塊計算平均置信度
       final avgConfidence = highConfidenceBlocks.isEmpty
           ? 0.0
-          : highConfidenceBlocks.map((b) => b.confidence).reduce((a, b) => a + b) /
+          : highConfidenceBlocks
+                  .map((b) => b.confidence)
+                  .reduce((a, b) => a + b) /
               highConfidenceBlocks.length;
 
       return OcrResult(
         fullText: fullText,
         blocks: highConfidenceBlocks,
         averageConfidence: avgConfidence,
-        hasLowConfidence: avgConfidence < 0.70,  // 提高塊臭閾值到 0.70
+        hasLowConfidence: avgConfidence < 0.70, // 提高塊臭閾值到 0.70
       );
     } catch (e) {
       throw OcrException('OCR 辨識失敗：$e');
@@ -135,15 +109,15 @@ class OcrService {
   String _cleanOcrText(String text) {
     // 1. 去除多個連續空白和換行
     final cleaned = text
-        .replaceAll(RegExp(r'\n\n+'), '\n')  // 多個換行 → 單個換行
-        .replaceAll(RegExp(r'  +'), ' ')      // 多個空格 → 單個空格
+        .replaceAll(RegExp(r'\n\n+'), '\n') // 多個換行 → 單個換行
+        .replaceAll(RegExp(r'  +'), ' ') // 多個空格 → 單個空格
         .trim();
 
     // 2. 去除不可見字符
     final lines = cleaned.split('\n');
     final validLines = lines
         .map((line) => line.trim())
-        .where((line) => line.isNotEmpty && line.length > 1)  // 過濾單字符行
+        .where((line) => line.isNotEmpty && line.length > 1) // 過濾單字符行
         .toList();
 
     return validLines.join('\n');
@@ -170,7 +144,7 @@ class OcrService {
       try {
         _recognizer!.close();
       } catch (e) {
-        print('釋放 OCR 資源時出錯：$e');
+        debugPrint('釋放 OCR 資源時出錯：$e');
       }
       _recognizer = null;
     }

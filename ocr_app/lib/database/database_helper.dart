@@ -1,10 +1,12 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import '../../../models/note.dart';
+import '../models/note.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
+
+  static const int _dbVersion = 2;
 
   DatabaseHelper._init();
 
@@ -20,8 +22,17 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
-      onCreate: _createDB,
+      version: _dbVersion,
+      onCreate: (db, version) async {
+        await _createDB(db, version);
+        await _ensureSchema(db);
+      },
+      onOpen: (db) async {
+        await _ensureSchema(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        await _ensureSchema(db);
+      },
     );
   }
 
@@ -38,6 +49,40 @@ class DatabaseHelper {
         updated_at   TEXT NOT NULL
       )
     ''');
+  }
+
+  Future<void> _ensureSchema(Database db) async {
+    // Ensure table exists (in case older DB was created differently).
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notes (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        title    TEXT NOT NULL,
+        content  TEXT NOT NULL,
+        raw_ocr_text TEXT NOT NULL,
+        image_path   TEXT NOT NULL,
+        tags         TEXT NOT NULL DEFAULT '',
+        created_at   TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+      )
+    ''');
+
+    final info = await db.rawQuery('PRAGMA table_info(notes)');
+    final existing = <String>{
+      for (final row in info) (row['name'] ?? '').toString(),
+    };
+
+    Future<void> addTextColumn(String name) async {
+      if (existing.contains(name)) return;
+      await db.execute(
+          "ALTER TABLE notes ADD COLUMN $name TEXT NOT NULL DEFAULT ''");
+      existing.add(name);
+    }
+
+    await addTextColumn('raw_ocr_text');
+    await addTextColumn('image_path');
+    await addTextColumn('tags');
+    await addTextColumn('created_at');
+    await addTextColumn('updated_at');
   }
 
   // ── Create ──────────────────────────────────────────────
