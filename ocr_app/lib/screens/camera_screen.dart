@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import '../theme/app_theme.dart';
 import 'loading_screen.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -93,7 +94,6 @@ class _CameraScreenState extends State<CameraScreen> {
           else
             const Center(child: CircularProgressIndicator(color: Colors.white)),
           _buildGridOverlay(),
-          _buildDocumentFrame(),
           _buildTopBar(),
           _buildBottomBar(),
         ],
@@ -104,27 +104,6 @@ class _CameraScreenState extends State<CameraScreen> {
   Widget _buildGridOverlay() {
     return const Positioned.fill(
       child: CustomPaint(painter: _GridPainter()),
-    );
-  }
-
-  Widget _buildDocumentFrame() {
-    return Center(
-      child: Container(
-        width: 260,
-        height: 340,
-        decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xCC6C63FF), width: 2),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: const Stack(
-          children: [
-            _Corner(top: 0, left: 0, borderTop: true, borderLeft: true),
-            _Corner(top: 0, right: 0, borderTop: true, borderRight: true),
-            _Corner(bottom: 0, left: 0, borderBottom: true, borderLeft: true),
-            _Corner(bottom: 0, right: 0, borderBottom: true, borderRight: true),
-          ],
-        ),
-      ),
     );
   }
 
@@ -144,14 +123,14 @@ class _CameraScreenState extends State<CameraScreen> {
                 child: const Icon(Icons.close, color: Colors.white, size: 28),
               ),
               const Text(
-                '對齊文件邊緣',
+                '拍攝整張文件',
                 style: TextStyle(color: Color(0xB3FFFFFF), fontSize: 13),
               ),
               GestureDetector(
                 onTap: _toggleFlash,
                 child: Icon(
                   _flashOn ? Icons.flash_on : Icons.flash_off,
-                  color: _flashOn ? const Color(0xFF6C63FF) : Colors.white,
+                  color: _flashOn ? AppColors.accent : Colors.white,
                   size: 28,
                 ),
               ),
@@ -291,50 +270,4 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_) => false;
-}
-
-class _Corner extends StatelessWidget {
-  final double? top, left, right, bottom;
-  final bool borderTop, borderLeft, borderRight, borderBottom;
-
-  const _Corner({
-    this.top,
-    this.left,
-    this.right,
-    this.bottom,
-    this.borderTop = false,
-    this.borderLeft = false,
-    this.borderRight = false,
-    this.borderBottom = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: top,
-      left: left,
-      right: right,
-      bottom: bottom,
-      child: Container(
-        width: 20,
-        height: 20,
-        decoration: BoxDecoration(
-          border: Border(
-            top: borderTop
-                ? const BorderSide(color: Color(0xFF6C63FF), width: 3)
-                : BorderSide.none,
-            left: borderLeft
-                ? const BorderSide(color: Color(0xFF6C63FF), width: 3)
-                : BorderSide.none,
-            right: borderRight
-                ? const BorderSide(color: Color(0xFF6C63FF), width: 3)
-                : BorderSide.none,
-            bottom: borderBottom
-                ? const BorderSide(color: Color(0xFF6C63FF), width: 3)
-                : BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'screens/dashboard_screen.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,20 +27,7 @@ class OcrNotesApp extends StatelessWidget {
     return MaterialApp(
       title: 'OCR 筆記',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6C63FF),
-          primary: const Color(0xFF6C63FF),
-        ),
-        fontFamily: 'NotoSansTC',
-        scaffoldBackgroundColor: const Color(0xFFF5F4F0),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF6C63FF),
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
       home: const DashboardScreen(),
     );
   }

@@ -1,22 +1,22 @@
-import '../database/database_helper.dart';
 import '../models/note.dart';
+import '../repositories/note_repository.dart';
 import '../services/ocr_service.dart';
 import '../services/image_service.dart';
 
 class NoteController {
-  final DatabaseHelper _db = DatabaseHelper.instance;
+  final NoteRepository _notes = NoteRepository();
   final OcrService _ocr = OcrService();
   final ImageService _imageService = ImageService();
 
   // ── 取得所有筆記 ──────────────────────────────────────────
   Future<List<Note>> getAllNotes() async {
-    return await _db.getAllNotes();
+    return await _notes.getAllNotes();
   }
 
   // ── 搜尋筆記 ──────────────────────────────────────────────
   Future<List<Note>> searchNotes(String query) async {
     if (query.trim().isEmpty) return await getAllNotes();
-    return await _db.searchNotes(query.trim());
+    return await _notes.searchNotes(query.trim());
   }
 
   // ── 儲存筆記 ──────────────────────────────────────────────
@@ -26,6 +26,10 @@ class NoteController {
     required String rawOcrText,
     required String imagePath,
     required List<String> tags,
+    String summary = '',
+    String sourceType = 'single_image',
+    String llmStatus = 'none',
+    int? scanSessionId,
   }) async {
     final now = DateTime.now();
     final note = Note(
@@ -34,16 +38,19 @@ class NoteController {
       rawOcrText: rawOcrText,
       imagePath: imagePath,
       tags: tags,
+      summary: summary,
+      sourceType: sourceType,
+      llmStatus: llmStatus,
+      scanSessionId: scanSessionId,
       createdAt: now,
       updatedAt: now,
     );
-    return await _db.insertNote(note);
+    return await _notes.insertNote(note);
   }
 
   // ── 更新筆記 ──────────────────────────────────────────────
   Future<Note> updateNote(Note note) async {
-    await _db.updateNote(note);
-    return note;
+    return await _notes.updateNote(note);
   }
 
   // ── 相機拍攝 → OCR → 回傳草稿 ────────────────────────────
@@ -101,7 +108,7 @@ class NoteController {
 
   // ── 刪除筆記（連同圖片） ──────────────────────────────────
   Future<void> deleteNote(Note note) async {
-    await _db.deleteNote(note.id!);
+    await _notes.deleteNote(note.id!);
     await _imageService.deleteImage(note.imagePath);
   }
 

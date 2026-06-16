@@ -1,18 +1,34 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../controllers/note_controller.dart';
+import '../models/llm_note_result.dart';
 import '../models/note.dart';
+import '../services/note_ai_service.dart';
+import '../theme/app_theme.dart';
 
 class EditorScreen extends StatefulWidget {
   final String? imagePath;
   final String? ocrText;
   final Note? existingNote;
+  final String? initialTitle;
+  final List<String> initialTags;
+  final String initialSummary;
+  final String sourceType;
+  final String llmStatus;
+  final int? scanSessionId;
 
   const EditorScreen({
     super.key,
     this.imagePath,
     this.ocrText,
     this.existingNote,
+    this.initialTitle,
+    this.initialTags = const [],
+    this.initialSummary = '',
+    this.sourceType = 'single_image',
+    this.llmStatus = 'none',
+    this.scanSessionId,
   });
 
   @override
@@ -24,7 +40,10 @@ class _EditorScreenState extends State<EditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   List<String> _tags = [];
+  String _summary = '';
+  String _llmStatus = 'none';
   bool _isSaving = false;
+  bool _isAiLoading = false;
 
   bool _isBold = false;
   bool _isUnderline = false;
@@ -34,15 +53,19 @@ class _EditorScreenState extends State<EditorScreen> {
   void initState() {
     super.initState();
     final note = widget.existingNote;
-    _titleController = TextEditingController(text: note?.title ?? '');
+    _titleController = TextEditingController(
+      text: note?.title ?? widget.initialTitle ?? '',
+    );
     _contentController = TextEditingController(
       text: note?.content ?? widget.ocrText ?? '',
     );
-    _tags = List.from(note?.tags ?? []);
+    _tags = List.from(note?.tags ?? widget.initialTags);
+    _summary = note?.summary ?? widget.initialSummary;
+    _llmStatus = note?.llmStatus ?? widget.llmStatus;
   }
 
   Future<void> _save() async {
-    if (_isSaving) return;
+    if (_isSaving || _isAiLoading) return;
     setState(() => _isSaving = true);
 
     try {
@@ -53,6 +76,8 @@ class _EditorScreenState extends State<EditorScreen> {
                 title: _titleController.text,
                 content: _contentController.text,
                 tags: _tags,
+                summary: _summary,
+                llmStatus: _llmStatus,
                 updatedAt: DateTime.now(),
               ),
             )
@@ -62,6 +87,10 @@ class _EditorScreenState extends State<EditorScreen> {
               rawOcrText: widget.ocrText ?? '',
               imagePath: widget.imagePath ?? '',
               tags: _tags,
+              summary: _summary,
+              sourceType: widget.sourceType,
+              llmStatus: _llmStatus,
+              scanSessionId: widget.scanSessionId,
             );
 
       await operation.timeout(
@@ -75,7 +104,7 @@ class _EditorScreenState extends State<EditorScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('筆記已儲存'),
-          backgroundColor: Color(0xFF6C63FF),
+          backgroundColor: AppColors.primary,
           duration: Duration(seconds: 2),
         ),
       );
@@ -100,6 +129,92 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _organizeWithAi() async {
+    if (_isAiLoading || _isSaving) return;
+
+    final text = _contentController.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('目前沒有可整理的筆記內容'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isAiLoading = true);
+
+    try {
+      final note = widget.existingNote;
+      final sessionId = note?.scanSessionId ?? widget.scanSessionId;
+      final service = NoteAiService();
+      final result = sessionId != null
+          ? await service.organizeScanSession(sessionId)
+          : await service.organizeText(text: text);
+
+      if (!mounted) return;
+      setState(() {
+        if (result.title.trim().isNotEmpty) {
+          _titleController.text = result.title.trim();
+        }
+        final aiContent = _noteContentFromAi(result);
+        if (aiContent.isNotEmpty) {
+          _contentController.text = aiContent;
+        }
+        _summary = result.summary;
+        _llmStatus = 'success';
+        final tags = _decodeTags(result.tagsJson);
+        if (tags.isNotEmpty) {
+          _tags = tags;
+        }
+        _isAiLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('AI 整理完成，確認後請儲存筆記'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isAiLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('AI 整理失敗：$e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  String _noteContentFromAi(LlmNoteResult result) {
+    final summary = result.summary.trim();
+    final organizedContent = result.organizedContent.trim();
+
+    if (summary.isEmpty) return organizedContent;
+    if (organizedContent.isEmpty || organizedContent == summary) {
+      return summary;
+    }
+    return '$summary\n\n$organizedContent';
+  }
+
+  List<String> _decodeTags(String tagsJson) {
+    try {
+      final value = jsonDecode(tagsJson);
+      if (value is List) {
+        return value
+            .map((tag) => tag.toString().trim())
+            .where((tag) => tag.isNotEmpty)
+            .toList();
+      }
+    } catch (_) {
+      return const [];
+    }
+    return const [];
   }
 
   void _addTag() {
@@ -140,7 +255,7 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
         title: Text(widget.existingNote != null ? '編輯筆記' : '新增筆記'),
         leading: IconButton(
@@ -148,6 +263,25 @@ class _EditorScreenState extends State<EditorScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          _isAiLoading
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                )
+              : IconButton(
+                  tooltip: 'AI 整理',
+                  onPressed: _organizeWithAi,
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                ),
           _isSaving
               ? const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
@@ -181,16 +315,15 @@ class _EditorScreenState extends State<EditorScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
-        border:
-            Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       child: TextField(
         controller: _titleController,
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
         decoration: const InputDecoration(
           hintText: '筆記標題…',
-          hintStyle:
-              TextStyle(color: Color(0xFFAAAAAA), fontWeight: FontWeight.w500),
+          hintStyle: TextStyle(
+              color: AppColors.textFaint, fontWeight: FontWeight.w500),
           border: InputBorder.none,
           isDense: true,
           contentPadding: EdgeInsets.zero,
@@ -203,15 +336,14 @@ class _EditorScreenState extends State<EditorScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
-        border:
-            Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
             const Text('標籤：',
-                style: TextStyle(fontSize: 12, color: Color(0xFFAAAAAA))),
+                style: TextStyle(fontSize: 12, color: AppColors.textFaint)),
             ..._tags.map((tag) => _TagChip(
                   label: tag,
                   onRemove: () => _removeTag(tag),
@@ -221,13 +353,12 @@ class _EditorScreenState extends State<EditorScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  border:
-                      Border.all(color: const Color(0xFF6C63FF), width: 0.5),
+                  border: Border.all(color: AppColors.primary, width: 0.5),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
                   '+ 新增',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF6C63FF)),
+                  style: TextStyle(fontSize: 11, color: AppColors.primary),
                 ),
               ),
             ),
@@ -241,9 +372,8 @@ class _EditorScreenState extends State<EditorScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: const BoxDecoration(
-        color: Color(0xFFF9F8FF),
-        border:
-            Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
+        color: AppColors.surfaceAlt,
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       child: Row(
         children: [
@@ -277,7 +407,7 @@ class _EditorScreenState extends State<EditorScreen> {
     return Container(
         width: 1,
         height: 18,
-        color: const Color(0xFFEEEEEE),
+        color: AppColors.border,
         margin: const EdgeInsets.symmetric(horizontal: 4));
   }
 
@@ -328,18 +458,20 @@ class _TagChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFFEDE9FE),
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF5B21B6))),
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.primaryDark)),
           const SizedBox(width: 3),
           GestureDetector(
             onTap: onRemove,
-            child: const Icon(Icons.close, size: 12, color: Color(0xFF5B21B6)),
+            child:
+                const Icon(Icons.close, size: 12, color: AppColors.primaryDark),
           ),
         ],
       ),
@@ -376,9 +508,8 @@ class _FmtBtn extends StatelessWidget {
         decoration: BoxDecoration(
           color: active ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
-          border: active
-              ? Border.all(color: const Color(0xFFDDDDDD), width: 0.5)
-              : null,
+          border:
+              active ? Border.all(color: AppColors.border, width: 0.5) : null,
         ),
         child: Center(
           child: Text(
@@ -389,7 +520,7 @@ class _FmtBtn extends StatelessWidget {
               fontStyle: italic ? FontStyle.italic : FontStyle.normal,
               decoration:
                   underline ? TextDecoration.underline : TextDecoration.none,
-              color: active ? const Color(0xFF6C63FF) : const Color(0xFF888888),
+              color: active ? AppColors.primary : AppColors.textMuted,
             ),
           ),
         ),

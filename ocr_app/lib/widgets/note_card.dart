@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/note.dart';
+import '../theme/app_theme.dart';
 
 class NoteCard extends StatelessWidget {
   final Note note;
@@ -18,14 +19,28 @@ class NoteCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF9F8FF),
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0x14000000), width: 0.5),
+          border: Border.all(color: AppColors.border, width: 0.8),
         ),
         child: Row(
           children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.description_outlined,
+                size: 20,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,12 +49,27 @@ class NoteCard extends StatelessWidget {
                     note.title,
                     style: const TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF1A1A1A),
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (note.summary.trim().isNotEmpty ||
+                      note.content.trim().isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      note.summary.trim().isNotEmpty
+                          ? note.summary.trim()
+                          : note.content.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Row(
                     children: [
@@ -47,7 +77,7 @@ class NoteCard extends StatelessWidget {
                         _formatDate(note.updatedAt),
                         style: const TextStyle(
                           fontSize: 11,
-                          color: Color(0xFFAAAAAA),
+                          color: AppColors.textFaint,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -60,7 +90,7 @@ class NoteCard extends StatelessWidget {
             IconButton(
               onPressed: onDelete,
               icon: const Icon(Icons.delete_outline, size: 18),
-              color: const Color(0xFFAAAAAA),
+              color: AppColors.textFaint,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
@@ -85,12 +115,12 @@ class _TagChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 4),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFEDE9FE),
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 10, color: Color(0xFF5B21B6)),
+        style: const TextStyle(fontSize: 10, color: AppColors.primaryDark),
       ),
     );
   }

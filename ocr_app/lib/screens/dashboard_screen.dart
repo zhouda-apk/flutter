@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../controllers/note_controller.dart';
 import '../models/note.dart';
+import '../theme/app_theme.dart';
 import '../widgets/note_card.dart';
 import 'camera_screen.dart';
 import 'album_picker_screen.dart';
 import 'editor_screen.dart';
+import 'settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -27,9 +29,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadNotes();
   }
 
-  Future<void> _loadNotes() async {
+  Future<void> _loadNotes({bool showLoading = true}) async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (showLoading) {
+      setState(() => _isLoading = true);
+    }
     try {
       final notes = await _controller.getAllNotes();
       if (!mounted) return;
@@ -43,9 +47,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('載入筆記失敗：$e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.danger,
         ),
       );
+    }
+  }
+
+  Future<void> _refreshNotes() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      await _loadNotes(showLoading: false);
+    } else {
+      await _searchNotes(query);
     }
   }
 
@@ -113,8 +126,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
             ListTile(
               leading: const CircleAvatar(
-                backgroundColor: Color(0xFFEDE9FE),
-                child: Icon(Icons.camera_alt, color: Color(0xFF6C63FF)),
+                backgroundColor: AppColors.surfaceAlt,
+                child: Icon(Icons.camera_alt, color: AppColors.primary),
               ),
               title: const Text('拍攝文件'),
               subtitle: const Text('使用相機直接拍攝'),
@@ -128,8 +141,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             ListTile(
               leading: const CircleAvatar(
-                backgroundColor: Color(0xFFEDE9FE),
-                child: Icon(Icons.photo_library, color: Color(0xFF6C63FF)),
+                backgroundColor: AppColors.surfaceAlt,
+                child: Icon(Icons.photo_library, color: AppColors.primary),
               ),
               title: const Text('從相簿選取'),
               subtitle: const Text('選擇現有照片辨識'),
@@ -148,6 +161,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -156,28 +176,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildHeader(),
           _buildToggleRow(),
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
-                : _notes.isEmpty
-                    ? _buildEmptyState()
-                    : _isGridView
-                        ? _buildGridView()
-                        : _buildListView(),
+            child: _buildNotesBody(),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showCaptureOptions,
-        backgroundColor: const Color(0xFF6C63FF),
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.camera_alt, color: Colors.white),
       ),
     );
   }
 
+  Widget _buildNotesBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: _refreshNotes,
+      child: _notes.isEmpty
+          ? _buildEmptyRefreshView()
+          : _isGridView
+              ? _buildGridView()
+              : _buildListView(),
+    );
+  }
+
+  Widget _buildEmptyRefreshView() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      children: [
+        SizedBox(
+          height: MediaQuery.of(context).size.height * 0.58,
+          child: _buildEmptyState(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildHeader() {
     return Container(
-      color: const Color(0xFF6C63FF),
+      decoration: const BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
+      ),
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 12,
         left: 16,
@@ -186,38 +233,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Column(
         children: [
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 '我的筆記',
                 style: TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w500),
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700),
               ),
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.white24,
-                child: Text('王',
-                    style: TextStyle(color: Colors.white, fontSize: 12)),
+              IconButton(
+                tooltip: '設定',
+                onPressed: _openSettings,
+                icon: const Icon(Icons.settings_outlined, color: Colors.white),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(
-              color: const Color(0x33FFFFFF),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
             child: TextField(
               controller: _searchController,
               onChanged: _searchNotes,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: AppColors.text, fontSize: 14),
               decoration: const InputDecoration(
                 hintText: '搜尋筆記、標籤…',
-                hintStyle: TextStyle(color: Colors.white60),
-                prefixIcon: Icon(Icons.search, color: Colors.white60, size: 20),
+                hintStyle: TextStyle(color: AppColors.textFaint),
+                prefixIcon:
+                    Icon(Icons.search, color: AppColors.textMuted, size: 20),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(vertical: 10),
               ),
@@ -230,14 +277,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildToggleRow() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: AppColors.background,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             '共 ${_notes.length} 則筆記',
-            style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
+            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           Row(
             children: [
@@ -261,6 +308,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildGridView() {
     return GridView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -279,6 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildListView() {
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(12),
       itemCount: _notes.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -291,17 +340,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.note_add_outlined, size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
+          Icon(Icons.note_add_outlined, size: 64, color: AppColors.textFaint),
+          SizedBox(height: 16),
           Text('還沒有筆記',
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade400)),
-          const SizedBox(height: 8),
+              style: TextStyle(fontSize: 16, color: AppColors.textMuted)),
+          SizedBox(height: 8),
           Text('點擊右下角按鈕開始掃描',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              style: TextStyle(fontSize: 13, color: AppColors.textFaint)),
         ],
       ),
     );
@@ -331,9 +380,9 @@ class _ViewToggleBtn extends StatelessWidget {
         width: 28,
         height: 26,
         decoration: BoxDecoration(
-          color: active ? const Color(0xFF6C63FF) : Colors.transparent,
+          color: active ? AppColors.primary : AppColors.surface,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: AppColors.border),
         ),
         child: Icon(icon, size: 16, color: active ? Colors.white : Colors.grey),
       ),
@@ -356,9 +405,9 @@ class _GridNoteCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: const Color(0xFFF9F8FF),
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0x14000000), width: 0.5),
+          border: Border.all(color: AppColors.border, width: 0.8),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,11 +416,11 @@ class _GridNoteCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Icon(Icons.description_outlined,
-                    size: 20, color: Color(0xFF6C63FF)),
+                    size: 20, color: AppColors.primary),
                 GestureDetector(
                   onTap: onDelete,
                   child: const Icon(Icons.delete_outline,
-                      size: 16, color: Color(0xFFAAAAAA)),
+                      size: 16, color: AppColors.textFaint),
                 ),
               ],
             ),
@@ -385,19 +434,20 @@ class _GridNoteCard extends StatelessWidget {
             const Spacer(),
             Text(
               '${note.updatedAt.month}/${note.updatedAt.day}',
-              style: const TextStyle(fontSize: 10, color: Color(0xFFAAAAAA)),
+              style: const TextStyle(fontSize: 10, color: AppColors.textFaint),
             ),
             if (note.tags.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(top: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEDE9FE),
+                  color: AppColors.surfaceAlt,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   note.tags.first,
-                  style: const TextStyle(fontSize: 9, color: Color(0xFF5B21B6)),
+                  style: const TextStyle(
+                      fontSize: 9, color: AppColors.primaryDark),
                 ),
               ),
           ],

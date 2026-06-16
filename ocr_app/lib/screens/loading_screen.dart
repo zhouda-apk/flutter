@@ -1,13 +1,37 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import '../services/ocr_service.dart';
-import 'proofreading_screen.dart';
+import '../services/scan_pipeline_service.dart';
+import '../theme/app_theme.dart';
+import 'scan_review_screen.dart';
+
+typedef LoadingPipelineRunner = Future<ScanPipelineResult> Function(
+  List<String> imagePaths, {
+  required String source,
+  required void Function(ScanPipelineProgress progress) onProgress,
+});
 
 class LoadingScreen extends StatefulWidget {
-  final String imagePath;
+  final List<String> imagePaths;
+  final String source;
+  final LoadingPipelineRunner? pipelineRunner;
 
-  const LoadingScreen({super.key, required this.imagePath});
+  LoadingScreen({
+    super.key,
+    required String imagePath,
+    this.source = 'camera',
+    this.pipelineRunner,
+  }) : imagePaths = [imagePath];
+
+  LoadingScreen.multiple({
+    super.key,
+    required List<String> imagePaths,
+    this.source = 'gallery',
+    this.pipelineRunner,
+  })  : assert(imagePaths.isNotEmpty),
+        imagePaths = List.unmodifiable(imagePaths);
+
+  String get previewImagePath => imagePaths.first;
 
   @override
   State<LoadingScreen> createState() => _LoadingScreenState();
@@ -18,7 +42,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   late AnimationController _spinController;
   double _progress = 0.0;
   String _statusText = '正在分析圖片…';
-  final OcrService _ocr = OcrService();
+  final ScanPipelineService _pipeline = ScanPipelineService();
 
   @override
   void initState() {
@@ -31,13 +55,8 @@ class _LoadingScreenState extends State<LoadingScreen>
   }
 
   Future<void> _startOcr() async {
-    _updateProgress(0.2, '正在偵測文字區域…');
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    _updateProgress(0.5, '辨識文字內容中…');
-
     try {
-      final result = await _ocr.recognizeText(widget.imagePath);
+      final pipelineResult = await _runPipeline();
 
       _updateProgress(0.85, '整理辨識結果…');
       await Future.delayed(const Duration(milliseconds: 300));
@@ -49,10 +68,7 @@ class _LoadingScreenState extends State<LoadingScreen>
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ProofreadingScreen(
-            imagePath: widget.imagePath,
-            ocrResult: result,
-          ),
+          builder: (_) => ScanReviewScreen(scanResult: pipelineResult),
         ),
       );
     } catch (e) {
@@ -61,10 +77,41 @@ class _LoadingScreenState extends State<LoadingScreen>
     }
   }
 
+  Future<ScanPipelineResult> _runPipeline() {
+    final runner = widget.pipelineRunner;
+    if (runner != null) {
+      return runner(
+        widget.imagePaths,
+        source: widget.source,
+        onProgress: (progress) {
+          _updateProgress(progress.progress, progress.message);
+        },
+      );
+    }
+
+    if (widget.imagePaths.length > 1) {
+      return _pipeline.processImages(
+        widget.imagePaths,
+        source: widget.source,
+        onProgress: (progress) {
+          _updateProgress(progress.progress, progress.message);
+        },
+      );
+    }
+
+    return _pipeline.processSingleImage(
+      widget.previewImagePath,
+      source: widget.source,
+      onProgress: (progress) {
+        _updateProgress(progress.progress, progress.message);
+      },
+    );
+  }
+
   @override
   void dispose() {
     _spinController.dispose();
-    _ocr.dispose();
+    _pipeline.dispose();
     super.dispose();
   }
 
@@ -77,7 +124,6 @@ class _LoadingScreenState extends State<LoadingScreen>
   }
 
   Future<void> _showErrorDialog(String error) async {
-    _ocr.dispose();
     if (!mounted) return;
 
     await showDialog<void>(
@@ -102,7 +148,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('辨識中'),
         leading: IconButton(
@@ -128,7 +174,7 @@ class _LoadingScreenState extends State<LoadingScreen>
             const SizedBox(height: 8),
             Text(
               _statusText,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
+              style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -136,14 +182,14 @@ class _LoadingScreenState extends State<LoadingScreen>
             const SizedBox(height: 8),
             Text(
               '預估剩餘時間：約 ${_estimateSeconds()} 秒',
-              style: const TextStyle(fontSize: 12, color: Color(0xFFAAAAAA)),
+              style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
             ),
             const SizedBox(height: 32),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text(
                 '取消並重新拍攝',
-                style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13),
+                style: TextStyle(color: AppColors.textFaint, fontSize: 13),
               ),
             ),
           ],
@@ -157,18 +203,18 @@ class _LoadingScreenState extends State<LoadingScreen>
       width: 160,
       height: 110,
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F4F0),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.file(
-          File(widget.imagePath),
+          File(widget.previewImagePath),
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => const Center(
-            child:
-                Icon(Icons.image_outlined, size: 40, color: Color(0xFFDDDDDD)),
+            child: Icon(Icons.image_outlined,
+                size: 40, color: AppColors.textFaint),
           ),
         ),
       ),
@@ -185,15 +231,15 @@ class _LoadingScreenState extends State<LoadingScreen>
           CircularProgressIndicator(
             value: _progress,
             strokeWidth: 4,
-            backgroundColor: Colors.grey.shade200,
-            color: const Color(0xFF6C63FF),
+            backgroundColor: AppColors.border,
+            color: AppColors.primary,
           ),
           Text(
             '${(_progress * 100).toInt()}%',
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: Color(0xFF6C63FF),
+              color: AppColors.primary,
             ),
           ),
         ],
@@ -207,8 +253,8 @@ class _LoadingScreenState extends State<LoadingScreen>
       child: LinearProgressIndicator(
         value: _progress,
         minHeight: 6,
-        backgroundColor: Colors.grey.shade200,
-        color: const Color(0xFF6C63FF),
+        backgroundColor: AppColors.border,
+        color: AppColors.primary,
       ),
     );
   }
