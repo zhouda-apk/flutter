@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -16,7 +15,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = "17"
     }
 
     defaultConfig {
@@ -28,6 +27,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // 增加堆內存限制，防止 OCR 模型加載崩潰
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -37,6 +39,23 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    packaging {
+        resources {
+            excludes += "META-INF/proguard/androidx-*.pro"
+        }
+    }
+}
+
+dependencies {
+    // ML Kit 核心依賴
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
+    
+    // 文字識別本地模型
+    implementation("com.google.mlkit:text-recognition:16.0.0")
+    
+    // 中文支持
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.0")
 }
 
 flutter {

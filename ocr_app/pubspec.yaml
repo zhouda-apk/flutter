@@ -12,10 +12,11 @@ dependencies:
 
   # 本地資料庫
   sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0  # ✅ 新增 FFI 支持
   path: ^1.9.0
 
   # OCR 辨識（支援繁體中文）
-  google_mlkit_text_recognition: ^0.13.0
+  google_mlkit_text_recognition: ^0.14.0
 
   # 相機 / 相簿
   image_picker: ^1.1.0
@@ -23,6 +24,10 @@ dependencies:
 
   # 路徑工具
   path_provider: ^2.1.0
+  image: ^4.9.1
+  http: ^1.6.0
+  crypto: ^3.0.7
+  image_cropper: ^12.2.1
 
 dev_dependencies:
   flutter_test:
