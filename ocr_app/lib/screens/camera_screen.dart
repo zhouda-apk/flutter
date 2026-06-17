@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import '../services/image_crop_service.dart';
 import '../theme/app_theme.dart';
 import 'loading_screen.dart';
 
@@ -16,6 +17,7 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isInitialized = false;
   bool _flashOn = false;
   bool _isCapturing = false;
+  final ImageCropService _cropService = ImageCropService();
 
   @override
   void initState() {
@@ -68,10 +70,17 @@ class _CameraScreenState extends State<CameraScreen> {
       final xFile = await _cameraController!.takePicture();
       if (!mounted) return;
 
+      final imagePath = await _prepareImageForOcr(xFile.path);
+      if (!mounted) return;
+      if (imagePath == null) {
+        setState(() => _isCapturing = false);
+        return;
+      }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => LoadingScreen(imagePath: xFile.path),
+          builder: (_) => LoadingScreen(imagePath: imagePath),
         ),
       );
     } catch (e) {
@@ -81,6 +90,62 @@ class _CameraScreenState extends State<CameraScreen> {
         SnackBar(content: Text('拍攝失敗：$e')),
       );
     }
+  }
+
+  Future<String?> _prepareImageForOcr(String imagePath) async {
+    final action = await showModalBottomSheet<_CaptureAction>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const ListTile(
+              title: Text('辨識前處理'),
+              subtitle: Text('裁掉旁邊頁面、頁腳或手寫區，可提升 OCR 順序與準確度'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.crop, color: AppColors.primary),
+              title: const Text('裁切後辨識'),
+              onTap: () => Navigator.pop(context, _CaptureAction.crop),
+            ),
+            ListTile(
+              leading: const Icon(Icons.article_outlined,
+                  color: AppColors.textMuted),
+              title: const Text('直接辨識整張照片'),
+              onTap: () => Navigator.pop(context, _CaptureAction.original),
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: AppColors.textMuted),
+              title: const Text('取消'),
+              onTap: () => Navigator.pop(context, _CaptureAction.cancel),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (action == _CaptureAction.crop) {
+      if (!mounted) return null;
+      return _cropService.cropForOcr(context, imagePath);
+    }
+    if (action == _CaptureAction.original) {
+      return imagePath;
+    }
+    return null;
   }
 
   @override
@@ -238,6 +303,8 @@ class AlbumRedirectHelper extends StatelessWidget {
     return const SizedBox.shrink();
   }
 }
+
+enum _CaptureAction { crop, original, cancel }
 
 class _AlbumImport extends StatelessWidget {
   const _AlbumImport();

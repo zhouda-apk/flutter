@@ -176,6 +176,7 @@ OCR 頁面內容：
 - tags：產生 3 到 5 個有用的繁體中文標籤。
 - warnings：只有在 OCR 文字明顯不完整、低信心、語意不確定或缺少上下文時才填寫；沒有問題就回傳空陣列。
 - 若有翻譯需求，請翻譯整理後的內容，不要翻譯原始 OCR 雜訊。
+- 若原文很長，請摘要整理，不要逐字重寫；務必優先確保 JSON 完整閉合。
 - 不要把 JSON 包在 Markdown code block 裡。
 """.strip()
 
@@ -201,30 +202,47 @@ OCR 頁面內容：
         return False
 
     def _parse_llm_response(self, response_text: str) -> LlmOrganizeNoteResponse:
+        json_text = self._extract_json(response_text)
+        parse_warnings: list[str] = []
+
         try:
-            parsed = json.loads(self._extract_json(response_text))
-            return LlmOrganizeNoteResponse(
-                title=str(parsed.get("title") or "Untitled note"),
-                summary=str(parsed.get("summary") or ""),
-                organized_content=str(parsed.get("organized_content") or ""),
-                tags=self._string_list(parsed.get("tags")),
-                warnings=self._string_list(parsed.get("warnings")),
-                model_name=self.model,
-                prompt_version="v1.1",
-            )
+            parsed = json.loads(json_text)
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            logger.error("Could not parse LLM response as JSON: %s", exc)
-            return LlmOrganizeNoteResponse(
-                title="AI organization parse failed",
-                summary="",
-                organized_content=response_text,
-                tags=[],
-                warnings=[
-                    "The AI response was not valid JSON. Raw response was saved instead."
-                ],
-                model_name=self.model,
-                prompt_version="v1.1",
+            parsed = self._parse_partial_json_fields(json_text)
+            if not parsed:
+                logger.error("Could not parse LLM response as JSON: %s", exc)
+                raise RuntimeError("AI response was not valid JSON") from exc
+            parse_warnings.append(
+                "AI 回應 JSON 不完整，已擷取可用欄位；建議重新整理以取得完整內容。"
             )
+
+        if not isinstance(parsed, dict):
+            raise RuntimeError("AI response JSON root was not an object")
+
+        title = self._clean_text(parsed.get("title")) or "AI 整理結果"
+        summary = self._clean_text(parsed.get("summary"))
+        organized_content = self._clean_text(parsed.get("organized_content"))
+
+        if not organized_content:
+            organized_content = summary
+
+        if not organized_content:
+            raise RuntimeError("AI response did not include note content")
+
+        warnings = [
+            *self._string_list(parsed.get("warnings")),
+            *parse_warnings,
+        ]
+
+        return LlmOrganizeNoteResponse(
+            title=title,
+            summary=summary,
+            organized_content=organized_content,
+            tags=self._string_list(parsed.get("tags")),
+            warnings=warnings,
+            model_name=self.model,
+            prompt_version="v1.2",
+        )
 
     @staticmethod
     def _extract_json(response_text: str) -> str:
@@ -233,14 +251,102 @@ OCR 頁面內容：
             text = re.sub(r"^```(?:json)?\s*", "", text)
             text = re.sub(r"\s*```$", "", text)
 
-        if text.startswith("{") and text.endswith("}"):
+        start = text.find("{")
+        if start < 0:
             return text
 
-        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-        if match:
-            return match.group(0)
+        end = text.rfind("}")
+        if end > start:
+            return text[start : end + 1]
 
-        return text
+        return text[start:]
+
+    def _parse_partial_json_fields(self, json_text: str) -> dict[str, Any]:
+        """Recover useful fields from a JSON object truncated by max tokens."""
+        parsed: dict[str, Any] = {}
+        for field in ("title", "summary", "organized_content"):
+            value = self._extract_json_string_field(json_text, field)
+            if value:
+                parsed[field] = value
+
+        for field in ("tags", "warnings"):
+            value = self._extract_json_array_field(json_text, field)
+            if value:
+                parsed[field] = value
+
+        return parsed
+
+    @staticmethod
+    def _extract_json_string_field(json_text: str, field: str) -> str:
+        match = re.search(rf'"{re.escape(field)}"\s*:\s*"', json_text)
+        if not match:
+            return ""
+
+        chars: list[str] = []
+        escaped = False
+        index = match.end()
+        while index < len(json_text):
+            char = json_text[index]
+            if escaped:
+                chars.append("\\" + char)
+                escaped = False
+                index += 1
+                continue
+
+            if char == "\\":
+                escaped = True
+                index += 1
+                continue
+
+            if char == '"' and NoteOrganizeService._is_json_field_boundary(
+                json_text[index + 1 :]
+            ):
+                break
+
+            chars.append(char)
+            index += 1
+
+        raw_value = "".join(chars).strip()
+        if not raw_value:
+            return ""
+
+        try:
+            return str(json.loads(f'"{raw_value}"')).strip()
+        except json.JSONDecodeError:
+            return (
+                raw_value.replace(r"\n", "\n")
+                .replace(r"\"", '"')
+                .replace(r"\\", "\\")
+                .strip()
+            )
+
+    @staticmethod
+    def _is_json_field_boundary(text_after_quote: str) -> bool:
+        stripped = text_after_quote.lstrip()
+        if stripped.startswith("}"):
+            return True
+        return re.match(r',\s*"[A-Za-z_][A-Za-z0-9_]*"\s*:', stripped) is not None
+
+    @staticmethod
+    def _extract_json_array_field(json_text: str, field: str) -> list[str]:
+        match = re.search(
+            rf'"{re.escape(field)}"\s*:\s*(\[[^\]]*\])',
+            json_text,
+            flags=re.DOTALL,
+        )
+        if not match:
+            return []
+        try:
+            value = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return []
+        return NoteOrganizeService._string_list(value)
+
+    @staticmethod
+    def _clean_text(value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
 
     @staticmethod
     def _string_list(value: Any) -> list[str]:

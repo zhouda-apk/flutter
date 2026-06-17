@@ -16,12 +16,12 @@ class Settings(BaseSettings):
     # Google Gemini settings
     google_api_key: str | None = None
     google_model: str = "gemini-2.5-flash"
-    google_max_tokens: int = 2000
+    google_max_tokens: int = 4096
 
     # Optional OpenAI fallback
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o"
-    openai_max_tokens: int = 2000
+    openai_max_tokens: int = 4096
 
     # FastAPI settings
     host: str = "0.0.0.0"

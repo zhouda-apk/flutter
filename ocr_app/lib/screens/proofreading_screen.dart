@@ -8,6 +8,7 @@ import '../models/llm_note_result.dart';
 import '../models/image_preprocess.dart';
 import '../models/scan_page.dart';
 import '../models/scan_session.dart';
+import '../services/image_crop_service.dart';
 import '../services/note_ai_service.dart';
 import '../services/ocr_service.dart';
 import '../services/scan_pipeline_service.dart';
@@ -107,6 +108,7 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
   bool _isReplacingPage = false;
   int _aiRequestToken = 0;
   final ScanPipelineService _pipeline = ScanPipelineService();
+  final ImageCropService _cropService = ImageCropService();
   final ImagePicker _picker = ImagePicker();
 
   _ProofreadPage get _currentPage => _pages[_activePage];
@@ -372,6 +374,8 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
 
     final image = await _picker.pickImage(source: source, imageQuality: 95);
     if (image == null) return;
+    final imagePath = await _prepareReplacementImage(image.path);
+    if (!mounted || imagePath == null) return;
 
     setState(() => _isReplacingPage = true);
     try {
@@ -390,7 +394,7 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
           ),
           ocrResult: current.ocrResult,
         ),
-        imagePath: image.path,
+        imagePath: imagePath,
       );
 
       if (!mounted) return;
@@ -419,6 +423,64 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
       setState(() => _isReplacingPage = false);
       _showSnackBar('替換失敗：$e');
     }
+  }
+
+  Future<String?> _prepareReplacementImage(String imagePath) async {
+    final action = await showModalBottomSheet<_ReplacementCropAction>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const ListTile(
+              title: Text('替換前處理'),
+              subtitle: Text('裁掉非本文區域後再重新辨識'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.crop, color: AppColors.primary),
+              title: const Text('裁切後替換'),
+              onTap: () => Navigator.pop(context, _ReplacementCropAction.crop),
+            ),
+            ListTile(
+              leading: const Icon(Icons.article_outlined,
+                  color: AppColors.textMuted),
+              title: const Text('直接替換'),
+              onTap: () =>
+                  Navigator.pop(context, _ReplacementCropAction.original),
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: AppColors.textMuted),
+              title: const Text('取消'),
+              onTap: () =>
+                  Navigator.pop(context, _ReplacementCropAction.cancel),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (action == _ReplacementCropAction.crop) {
+      if (!mounted) return null;
+      return _cropService.cropForOcr(context, imagePath);
+    }
+    if (action == _ReplacementCropAction.original) {
+      return imagePath;
+    }
+    return null;
   }
 
   @override
@@ -831,6 +893,8 @@ class _ProofreadingScreenState extends State<ProofreadingScreen> {
     super.dispose();
   }
 }
+
+enum _ReplacementCropAction { crop, original, cancel }
 
 class _ProofreadPage {
   final int pageIndex;

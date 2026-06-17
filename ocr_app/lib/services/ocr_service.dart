@@ -71,6 +71,7 @@ class OcrService {
       }
 
       // 計算每個 block 的置信度
+      final readingLayout = _detectReadingLayout(recognized.blocks);
       final orderedBlockDrafts = _sortBlocksByReadingOrder(
         recognized.blocks.indexed.map((entry) {
           final (index, block) = entry;
@@ -84,13 +85,14 @@ class OcrService {
 
           return _OcrBlockDraft(
             originalIndex: index,
-            text: _orderedBlockText(block),
+            text: _orderedBlockText(block, readingLayout),
             confidence: avgConfidence,
             boundingBox: block.boundingBox,
             boundingBoxJson: _boundingBoxToJson(block.boundingBox),
-            fragments: _orderedBlockFragments(block),
+            fragments: _orderedBlockFragments(block, readingLayout),
           );
         }).toList(),
+        readingLayout,
       );
 
       final blocks = orderedBlockDrafts.indexed.map((entry) {
@@ -148,21 +150,53 @@ class OcrService {
     }
   }
 
+  _OcrReadingLayout _detectReadingLayout(List<TextBlock> blocks) {
+    final rects = <Rect>[];
+    for (final block in blocks) {
+      for (final line in block.lines) {
+        rects.add(line.boundingBox);
+      }
+      if (block.lines.isEmpty) {
+        rects.add(block.boundingBox);
+      }
+    }
+
+    if (rects.length < 3) return _OcrReadingLayout.horizontalLtr;
+
+    var verticalLike = 0;
+    var horizontalLike = 0;
+    for (final rect in rects) {
+      if (rect.height > rect.width * 1.25) verticalLike++;
+      if (rect.width > rect.height * 1.25) horizontalLike++;
+    }
+
+    final verticalRatio = verticalLike / rects.length;
+    if (verticalLike >= horizontalLike && verticalRatio >= 0.35) {
+      return _OcrReadingLayout.verticalRtl;
+    }
+    return _OcrReadingLayout.horizontalLtr;
+  }
+
   List<_OcrBlockDraft> _sortBlocksByReadingOrder(
     List<_OcrBlockDraft> blocks,
+    _OcrReadingLayout layout,
   ) {
     final ordered = List<_OcrBlockDraft>.of(blocks);
     ordered.sort((a, b) {
-      final byLayout = _compareRectsReadingOrder(a.boundingBox, b.boundingBox);
+      final byLayout =
+          _compareRectsReadingOrder(a.boundingBox, b.boundingBox, layout);
       if (byLayout != 0) return byLayout;
       return a.originalIndex.compareTo(b.originalIndex);
     });
     return ordered;
   }
 
-  String _orderedBlockText(TextBlock block) {
+  String _orderedBlockText(TextBlock block, _OcrReadingLayout layout) {
     final lines = List<TextLine>.of(block.lines)
-      ..sort((a, b) => _compareRectsReadingOrder(a.boundingBox, b.boundingBox));
+      ..sort(
+        (a, b) =>
+            _compareRectsReadingOrder(a.boundingBox, b.boundingBox, layout),
+      );
 
     final text = lines
         .map((line) => line.text.trim())
@@ -173,15 +207,22 @@ class OcrService {
     return text.isEmpty ? block.text.trim() : text;
   }
 
-  List<OcrTextFragment> _orderedBlockFragments(TextBlock block) {
+  List<OcrTextFragment> _orderedBlockFragments(
+    TextBlock block,
+    _OcrReadingLayout layout,
+  ) {
     final lines = List<TextLine>.of(block.lines)
-      ..sort((a, b) => _compareRectsReadingOrder(a.boundingBox, b.boundingBox));
+      ..sort(
+        (a, b) =>
+            _compareRectsReadingOrder(a.boundingBox, b.boundingBox, layout),
+      );
 
     final fragments = <OcrTextFragment>[];
     for (final line in lines) {
       final elements = List<TextElement>.of(line.elements)
         ..sort(
-          (a, b) => _compareRectsReadingOrder(a.boundingBox, b.boundingBox),
+          (a, b) =>
+              _compareRectsReadingOrder(a.boundingBox, b.boundingBox, layout),
         );
 
       if (elements.isEmpty) {
@@ -216,11 +257,23 @@ class OcrService {
     return fragments;
   }
 
-  int _compareRectsReadingOrder(Rect? a, Rect? b) {
+  int _compareRectsReadingOrder(
+    Rect? a,
+    Rect? b,
+    _OcrReadingLayout layout,
+  ) {
     if (a == null && b == null) return 0;
     if (a == null) return 1;
     if (b == null) return -1;
 
+    if (layout == _OcrReadingLayout.verticalRtl) {
+      return _compareVerticalRtl(a, b);
+    }
+
+    return _compareHorizontalLtr(a, b);
+  }
+
+  int _compareHorizontalLtr(Rect a, Rect b) {
     final centerDeltaY = (a.center.dy - b.center.dy).abs();
     final averageHeight = (a.height + b.height) / 2;
     final rowTolerance = math.max(8.0, averageHeight * 0.45);
@@ -240,6 +293,30 @@ class OcrService {
 
     final leftDelta = a.left - b.left;
     if (leftDelta.abs() > 4) return leftDelta.sign.toInt();
+    return 0;
+  }
+
+  int _compareVerticalRtl(Rect a, Rect b) {
+    final centerDeltaX = (a.center.dx - b.center.dx).abs();
+    final averageWidth = (a.width + b.width) / 2;
+    final columnTolerance = math.max(8.0, averageWidth * 0.70);
+    final overlapsHorizontally = a.left <= b.right && b.left <= a.right;
+    final sameReadingColumn =
+        overlapsHorizontally || centerDeltaX <= columnTolerance;
+
+    if (sameReadingColumn) {
+      final topDelta = a.top - b.top;
+      if (topDelta.abs() > 4) return topDelta.sign.toInt();
+      final leftDelta = b.left - a.left;
+      if (leftDelta.abs() > 4) return leftDelta.sign.toInt();
+      return 0;
+    }
+
+    final rightToLeftDelta = b.center.dx - a.center.dx;
+    if (rightToLeftDelta.abs() > 4) return rightToLeftDelta.sign.toInt();
+
+    final topDelta = a.top - b.top;
+    if (topDelta.abs() > 4) return topDelta.sign.toInt();
     return 0;
   }
 
@@ -348,6 +425,8 @@ class OcrResult {
     );
   }
 }
+
+enum _OcrReadingLayout { horizontalLtr, verticalRtl }
 
 class _OcrBlockDraft {
   final int originalIndex;

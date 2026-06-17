@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'loading_screen.dart';
+import '../services/image_crop_service.dart';
 import '../theme/app_theme.dart';
 
 class AlbumPickerScreen extends StatefulWidget {
@@ -13,6 +14,7 @@ class AlbumPickerScreen extends StatefulWidget {
 
 class _AlbumPickerScreenState extends State<AlbumPickerScreen> {
   final ImagePicker _picker = ImagePicker();
+  final ImageCropService _cropService = ImageCropService();
   List<XFile> _allImages = [];
   final Set<int> _selectedIndices = {};
   int _activeTab = 0;
@@ -68,15 +70,83 @@ class _AlbumPickerScreenState extends State<AlbumPickerScreen> {
 
     final selected = _selectedIndices.toList()..sort();
     final selectedPaths = selected.map((i) => _allImages[i].path).toList();
+    final preparedPaths = await _prepareImagesForOcr(selectedPaths);
+    if (!mounted || preparedPaths == null || preparedPaths.isEmpty) return;
 
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => selectedPaths.length == 1
-            ? LoadingScreen(imagePath: selectedPaths.first, source: 'gallery')
-            : LoadingScreen.multiple(imagePaths: selectedPaths),
+        builder: (_) => preparedPaths.length == 1
+            ? LoadingScreen(imagePath: preparedPaths.first, source: 'gallery')
+            : LoadingScreen.multiple(imagePaths: preparedPaths),
       ),
     );
+  }
+
+  Future<List<String>?> _prepareImagesForOcr(List<String> imagePaths) async {
+    final action = await showModalBottomSheet<_AlbumImportAction>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              title: const Text('辨識前處理'),
+              subtitle: Text(
+                imagePaths.length == 1
+                    ? '裁掉非本文區域，可提升 OCR 準確度'
+                    : '可逐張裁切，裁掉非本文區域後再 OCR',
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.crop, color: AppColors.primary),
+              title: Text(imagePaths.length == 1 ? '裁切後辨識' : '逐張裁切後辨識'),
+              onTap: () => Navigator.pop(context, _AlbumImportAction.crop),
+            ),
+            ListTile(
+              leading: const Icon(Icons.article_outlined,
+                  color: AppColors.textMuted),
+              title: const Text('直接辨識原圖'),
+              onTap: () => Navigator.pop(context, _AlbumImportAction.original),
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: AppColors.textMuted),
+              title: const Text('取消'),
+              onTap: () => Navigator.pop(context, _AlbumImportAction.cancel),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (action == _AlbumImportAction.original) {
+      return imagePaths;
+    }
+    if (action != _AlbumImportAction.crop) {
+      return null;
+    }
+
+    final croppedPaths = <String>[];
+    for (final imagePath in imagePaths) {
+      if (!mounted) return null;
+      final cropped = await _cropService.cropForOcr(context, imagePath);
+      croppedPaths.add(cropped ?? imagePath);
+    }
+    return croppedPaths;
   }
 
   @override
@@ -279,3 +349,5 @@ class _AlbumPickerScreenState extends State<AlbumPickerScreen> {
     );
   }
 }
+
+enum _AlbumImportAction { crop, original, cancel }

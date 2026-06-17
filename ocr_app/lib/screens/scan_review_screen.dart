@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../services/image_crop_service.dart';
 import '../services/scan_pipeline_service.dart';
 import '../theme/app_theme.dart';
 import 'proofreading_screen.dart';
@@ -22,6 +23,7 @@ class ScanReviewScreen extends StatefulWidget {
 class _ScanReviewScreenState extends State<ScanReviewScreen> {
   late List<ScanPageDraft> _pages;
   final ScanPipelineService _pipeline = ScanPipelineService();
+  final ImageCropService _cropService = ImageCropService();
   final ImagePicker _picker = ImagePicker();
   int? _replacingIndex;
   String _replaceStatus = '';
@@ -113,6 +115,8 @@ class _ScanReviewScreenState extends State<ScanReviewScreen> {
 
     final image = await _picker.pickImage(source: source, imageQuality: 95);
     if (image == null) return;
+    final imagePath = await _prepareReplacementImage(image.path);
+    if (!mounted || imagePath == null) return;
 
     setState(() {
       _replacingIndex = index;
@@ -123,7 +127,7 @@ class _ScanReviewScreenState extends State<ScanReviewScreen> {
       final replacement = await _pipeline.replacePageImage(
         session: widget.scanResult.session,
         currentPage: _pages[index],
-        imagePath: image.path,
+        imagePath: imagePath,
         onProgress: (progress) {
           if (!mounted) return;
           setState(() => _replaceStatus = progress.message);
@@ -148,6 +152,64 @@ class _ScanReviewScreenState extends State<ScanReviewScreen> {
       });
       _showSnackBar('替換失敗：$e');
     }
+  }
+
+  Future<String?> _prepareReplacementImage(String imagePath) async {
+    final action = await showModalBottomSheet<_ReplacementCropAction>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const ListTile(
+              title: Text('替換前處理'),
+              subtitle: Text('裁掉非本文區域後再重新辨識'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.crop, color: AppColors.primary),
+              title: const Text('裁切後替換'),
+              onTap: () => Navigator.pop(context, _ReplacementCropAction.crop),
+            ),
+            ListTile(
+              leading: const Icon(Icons.article_outlined,
+                  color: AppColors.textMuted),
+              title: const Text('直接替換'),
+              onTap: () =>
+                  Navigator.pop(context, _ReplacementCropAction.original),
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: AppColors.textMuted),
+              title: const Text('取消'),
+              onTap: () =>
+                  Navigator.pop(context, _ReplacementCropAction.cancel),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (action == _ReplacementCropAction.crop) {
+      if (!mounted) return null;
+      return _cropService.cropForOcr(context, imagePath);
+    }
+    if (action == _ReplacementCropAction.original) {
+      return imagePath;
+    }
+    return null;
   }
 
   void _showSnackBar(String message) {
@@ -270,6 +332,8 @@ class _ScanReviewScreenState extends State<ScanReviewScreen> {
     );
   }
 }
+
+enum _ReplacementCropAction { crop, original, cancel }
 
 class _ScanPageReviewCard extends StatelessWidget {
   final ScanPageDraft page;
